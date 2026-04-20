@@ -22,15 +22,14 @@ export default function ForecastControls({
   isLoading = false,
 }: ForecastControlsProps) {
   return (
-    <section className="rounded-[28px] border border-white/10 bg-white/6 p-6 shadow-[0_16px_60px_rgba(15,23,42,0.16)] backdrop-blur">
+    <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
       <div>
-        <p className="text-[11px] font-medium tracking-[0.28em] text-cyan-200 uppercase">
+        <p className="text-[11px] font-medium tracking-[0.28em] text-slate-400 uppercase">
           Forecast controls
         </p>
-        <h3 className="mt-2 text-xl font-semibold text-white">Choose the variable to forecast</h3>
-        <p className="mt-2 text-sm leading-6 text-slate-300">
-          The app keeps the first CSV column as the time index and sends only the selected numeric
-          target to the long-horizon TimeGPT endpoint.
+        <h3 className="mt-2 text-lg font-semibold text-slate-900">Choose the target</h3>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          Keep the first column as time and select the numeric series you want to project.
         </p>
       </div>
 
@@ -43,7 +42,7 @@ export default function ForecastControls({
             value={selectedTarget}
             onChange={(event) => onTargetChange(event.target.value)}
             disabled={disabled || targetOptions.length === 0}
-            className="w-full rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300"
+            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300"
           >
             {targetOptions.map((option) => (
               <option key={option} value={option}>
@@ -64,12 +63,12 @@ export default function ForecastControls({
             value={horizon}
             onChange={(event) => onHorizonChange(Number(event.target.value))}
             disabled={disabled}
-            className="w-full rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300"
+            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300"
           />
         </label>
       </div>
 
-      <div className="mt-6 rounded-2xl border border-white/8 bg-slate-950/35 p-4 text-sm text-slate-300">
+      <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
         {intervalsEnabled
           ? "Prediction intervals are requested at 80% and 95%, and the model is fixed to timegpt-1-long-horizon."
           : "Short histories can still forecast, but the app will skip interval bands until the series has enough samples."}
@@ -79,7 +78,7 @@ export default function ForecastControls({
         type="button"
         onClick={onGenerate}
         disabled={disabled || isLoading || targetOptions.length === 0}
-        className="mt-6 inline-flex w-full items-center justify-center rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-6 inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isLoading ? "Generating forecast..." : "Generate forecast"}
       </button>

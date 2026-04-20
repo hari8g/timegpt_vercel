@@ -25,16 +25,24 @@ function MetricCard({
   helper: string;
 }) {
   return (
-    <div className="rounded-[28px] border border-white/10 bg-white/6 p-5 shadow-[0_16px_60px_rgba(15,23,42,0.16)] backdrop-blur">
-      <div className="flex items-center gap-3 text-cyan-200">
+    <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
+      <div className="flex items-center gap-3 text-slate-500">
         {icon}
         <span className="text-[11px] font-medium tracking-[0.28em] uppercase text-slate-400">
           {label}
         </span>
       </div>
-      <p className="mt-4 text-2xl font-semibold text-white">{value}</p>
-      <p className="mt-2 text-sm text-slate-400">{helper}</p>
+      <p className="mt-4 text-2xl font-semibold text-slate-900">{value}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-500">{helper}</p>
     </div>
+  );
+}
+
+function InlinePill({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium tracking-[0.18em] text-slate-500 uppercase">
+      {children}
+    </span>
   );
 }
 
@@ -52,9 +60,9 @@ function MessagePanel({
   }
 
   const styles = {
-    warning: "border-amber-400/20 bg-amber-400/10 text-amber-100",
-    danger: "border-rose-400/20 bg-rose-400/10 text-rose-100",
-    success: "border-emerald-400/20 bg-emerald-400/10 text-emerald-100",
+    warning: "border-amber-200 bg-amber-50 text-amber-900",
+    danger: "border-rose-200 bg-rose-50 text-rose-900",
+    success: "border-emerald-200 bg-emerald-50 text-emerald-900",
   }[tone];
 
   const Icon = tone === "danger" ? AlertTriangle : tone === "warning" ? AlertTriangle : CheckCircle2;
@@ -188,38 +196,27 @@ export default function ForecastWorkspace() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.16),transparent_28%),linear-gradient(180deg,#020617_0%,#0f172a_45%,#111827_100%)] px-4 py-10 text-white sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
-        <section className="rounded-[36px] border border-white/10 bg-white/6 px-6 py-8 shadow-[0_24px_90px_rgba(2,6,23,0.45)] backdrop-blur sm:px-8 lg:px-10">
-          <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+    <main className="min-h-screen bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-10 text-slate-900 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1240px]">
+        <section className="rounded-[36px] border border-slate-200 bg-white px-6 py-8 shadow-[0_28px_90px_rgba(15,23,42,0.06)] sm:px-8 lg:px-10">
+          <div className="flex flex-col gap-6">
             <div className="max-w-3xl">
-              <p className="text-[11px] font-medium tracking-[0.36em] text-cyan-200 uppercase">
+              <p className="text-[11px] font-medium tracking-[0.36em] text-slate-400 uppercase">
                 TimeGPT Forecast Studio
               </p>
-              <h1 className="mt-4 text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-                Upload a CSV, auto-profile the series, and generate a polished long-horizon
-                forecast.
+              <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-900 sm:text-[3.25rem]">
+                Upload a CSV and turn it into an elegant forecasting workspace.
               </h1>
-              <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300">
-                Built for Vercel with a minimal analytics-first interface. The app treats the first
-                CSV column as time, lets you choose a numeric target, and sends the series to your
-                TimeGPT endpoint for forecasting.
+              <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600">
+                The interface keeps the controls quiet, surfaces the chart first, and uses the
+                long-horizon TimeGPT model to generate cleaner forecast visuals with confidence
+                bands when available.
               </p>
             </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <MetricCard
-                icon={<Sparkles className="h-5 w-5" />}
-                label="Model"
-                value={MODEL_NAME}
-                helper="Locked to the long-horizon TimeGPT model."
-              />
-              <MetricCard
-                icon={<DatabaseZap className="h-5 w-5" />}
-                label="Endpoint"
-                value={DEFAULT_BASE_URL}
-                helper="Direct locally, with HTTPS-safe proxy fallback on deployment."
-              />
+            <div className="flex flex-wrap gap-2">
+              <InlinePill>Model: {MODEL_NAME}</InlinePill>
+              <InlinePill>Endpoint: {DEFAULT_BASE_URL}</InlinePill>
+              <InlinePill>Intervals: 80% / 95%</InlinePill>
             </div>
           </div>
         </section>
@@ -229,14 +226,14 @@ export default function ForecastWorkspace() {
         </div>
 
         {errorMessage ? (
-          <div className="mt-6 rounded-[24px] border border-rose-400/20 bg-rose-400/10 p-5 text-sm leading-6 text-rose-100">
+          <div className="mt-6 rounded-[24px] border border-rose-200 bg-rose-50 p-5 text-sm leading-6 text-rose-900">
             {errorMessage}
           </div>
         ) : null}
 
         {dataset ? (
-          <div className="mt-8 grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
-            <div className="space-y-6">
+          <div className="mt-8 grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]">
+            <aside className="space-y-5 lg:sticky lg:top-6 lg:self-start">
               <ForecastControls
                 targetOptions={dataset.numericTargetColumns}
                 selectedTarget={selectedTarget}
@@ -253,27 +250,27 @@ export default function ForecastWorkspace() {
                 selectedTarget={selectedTarget}
                 validatedSeries={validatedSeries}
               />
-            </div>
+            </aside>
 
-            <div className="space-y-6">
+            <section className="space-y-6">
               <div className="grid gap-4 md:grid-cols-3">
                 <MetricCard
                   icon={<LineChart className="h-5 w-5" />}
                   label="Observations"
                   value={String(validatedSeries?.points.length ?? 0)}
-                  helper="Valid points kept after parsing."
+                  helper="Usable history retained after validation."
                 />
                 <MetricCard
                   icon={<Sparkles className="h-5 w-5" />}
-                  label="Forecast Horizon"
-                  value={String(horizon)}
-                  helper="Future steps generated locally before plotting."
+                  label="Frequency"
+                  value={validatedSeries?.freq ?? "Pending"}
+                  helper="Inferred spacing used to build the forecast window."
                 />
                 <MetricCard
                   icon={<DatabaseZap className="h-5 w-5" />}
                   label="Output Tokens"
                   value={String(forecastResult?.outputTokens ?? 0)}
-                  helper="Returned by the model after inference."
+                  helper="Returned by the model after the latest forecast."
                 />
               </div>
 
@@ -299,7 +296,7 @@ export default function ForecastWorkspace() {
               />
 
               <DataTablePreview dataset={dataset} />
-            </div>
+            </section>
           </div>
         ) : null}
       </div>
