@@ -1,12 +1,13 @@
 "use client";
 
-import type { CsvRow, SeriesPoint, ValidatedSeries } from "@/types/forecast";
+import type { CsvRow, InterpolationMethod, SeriesPoint, ValidatedSeries } from "@/types/forecast";
 
 interface BuildSeriesOptions {
   rows: CsvRow[];
   timeColumn: string;
   targetColumn: string;
   horizon: number;
+  interpolationMethod: InterpolationMethod;
 }
 
 const MINUTE = 60 * 1000;
@@ -30,6 +31,76 @@ function parseNumericValue(value: string | null) {
 
   const parsed = Number(value.replaceAll(",", ""));
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function interpolateValues(
+  values: Array<number | null>,
+  method: InterpolationMethod,
+): { values: Array<number | null>; interpolatedCount: number } {
+  if (method === "none") {
+    return { values, interpolatedCount: 0 };
+  }
+
+  const result = [...values];
+  let interpolatedCount = 0;
+
+  if (method === "forward-fill") {
+    let lastValue: number | null = null;
+    for (let index = 0; index < result.length; index += 1) {
+      if (result[index] !== null) {
+        lastValue = result[index];
+        continue;
+      }
+      if (lastValue !== null) {
+        result[index] = lastValue;
+        interpolatedCount += 1;
+      }
+    }
+    return { values: result, interpolatedCount };
+  }
+
+  if (method === "backward-fill") {
+    let nextValue: number | null = null;
+    for (let index = result.length - 1; index >= 0; index -= 1) {
+      if (result[index] !== null) {
+        nextValue = result[index];
+        continue;
+      }
+      if (nextValue !== null) {
+        result[index] = nextValue;
+        interpolatedCount += 1;
+      }
+    }
+    return { values: result, interpolatedCount };
+  }
+
+  for (let index = 0; index < result.length; index += 1) {
+    if (result[index] !== null) {
+      continue;
+    }
+
+    let left = index - 1;
+    while (left >= 0 && result[left] === null) {
+      left -= 1;
+    }
+
+    let right = index + 1;
+    while (right < result.length && result[right] === null) {
+      right += 1;
+    }
+
+    const leftValue = left >= 0 ? result[left] : null;
+    const rightValue = right < result.length ? result[right] : null;
+
+    if (leftValue !== null && rightValue !== null) {
+      const span = right - left;
+      const step = (rightValue - leftValue) / span;
+      result[index] = leftValue + step * (index - left);
+      interpolatedCount += 1;
+    }
+  }
+
+  return { values: result, interpolatedCount };
 }
 
 function formatIso(date: Date) {
@@ -172,11 +243,12 @@ export function buildValidatedSeries({
   timeColumn,
   targetColumn,
   horizon,
+  interpolationMethod,
 }: BuildSeriesOptions): ValidatedSeries {
   const blockingIssues: string[] = [];
   const warnings: string[] = [];
-  const parsedRows: Array<SeriesPoint & { date: Date }> = [];
-  let missingTargetCount = 0;
+  const parsedRows: Array<{ date: Date; value: number | null }> = [];
+  let missingTargetCountBeforeInterpolation = 0;
   let invalidDateCount = 0;
 
   for (const row of rows) {
@@ -188,16 +260,13 @@ export function buildValidatedSeries({
       continue;
     }
 
-    if (value === null) {
-      missingTargetCount += 1;
-      continue;
-    }
-
     parsedRows.push({
-      timestamp: formatIso(date),
       value,
       date,
     });
+    if (value === null) {
+      missingTargetCountBeforeInterpolation += 1;
+    }
   }
 
   if (parsedRows.length < 3) {
@@ -206,10 +275,6 @@ export function buildValidatedSeries({
   if (invalidDateCount > 0) {
     blockingIssues.push(`${invalidDateCount} rows could not be parsed as dates from the first column.`);
   }
-  if (missingTargetCount > 0) {
-    blockingIssues.push(`${missingTargetCount} rows have missing or non-numeric target values.`);
-  }
-
   const sortedRows = [...parsedRows].sort((a, b) => a.date.getTime() - b.date.getTime());
   const sortedInput = sortedRows.every((row, index) => row === parsedRows[index]);
   if (!sortedInput && sortedRows.length > 0) {
@@ -234,7 +299,43 @@ export function buildValidatedSeries({
     blockingIssues.push(`${duplicateTimestampCount} duplicate timestamps were found in the time column.`);
   }
 
-  const dates = dedupedRows.map((row) => row.date);
+  const baseValues = dedupedRows.map((row) => row.value);
+  const interpolationResult = interpolateValues(baseValues, interpolationMethod);
+  const finalizedRows = dedupedRows.map((row, index) => ({
+    date: row.date,
+    value: interpolationResult.values[index],
+  }));
+
+  const missingTargetCount = finalizedRows.filter((row) => row.value === null).length;
+  if (missingTargetCount > 0) {
+    blockingIssues.push(
+      `${missingTargetCount} rows still have missing target values after applying ${interpolationMethod} interpolation.`,
+    );
+  }
+
+  if (interpolationResult.interpolatedCount > 0) {
+    warnings.push(
+      `${interpolationResult.interpolatedCount} missing values were filled using ${interpolationMethod} interpolation.`,
+    );
+  } else if (missingTargetCountBeforeInterpolation > 0 && interpolationMethod !== "none") {
+    warnings.push(
+      `No values could be filled with ${interpolationMethod} interpolation. Try a different interpolation method.`,
+    );
+  }
+
+  const usableRows: Array<SeriesPoint & { date: Date }> = finalizedRows
+    .filter((row): row is { date: Date; value: number } => row.value !== null)
+    .map((row) => ({
+      date: row.date,
+      timestamp: formatIso(row.date),
+      value: row.value,
+    }));
+
+  if (usableRows.length < 3) {
+    blockingIssues.push("The selected variable needs at least 3 usable observations after cleaning.");
+  }
+
+  const dates = usableRows.map((row) => row.date);
   const { freq, label } = inferFrequency(dates);
 
   if (!freq) {
@@ -260,8 +361,8 @@ export function buildValidatedSeries({
   }
 
   const futureTimestamps: string[] = [];
-  if (freq && dedupedRows.length > 0 && horizon > 0) {
-    let cursor = dedupedRows[dedupedRows.length - 1].date;
+  if (freq && usableRows.length > 0 && horizon > 0) {
+    let cursor = usableRows[usableRows.length - 1].date;
     for (let index = 0; index < horizon; index += 1) {
       cursor = addStep(cursor, freq);
       futureTimestamps.push(formatIso(cursor));
@@ -273,7 +374,7 @@ export function buildValidatedSeries({
     targetColumn,
     freq,
     inferredFrequencyLabel: label,
-    points: dedupedRows.map(({ timestamp, value }) => ({ timestamp, value })),
+    points: usableRows.map(({ timestamp, value }) => ({ timestamp, value })),
     futureTimestamps,
     quality: {
       blockingIssues,
@@ -282,6 +383,8 @@ export function buildValidatedSeries({
       duplicateTimestampCount,
       gapCount,
       sortedInput,
+      interpolatedCount: interpolationResult.interpolatedCount,
+      interpolationMethod,
     },
   };
 }

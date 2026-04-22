@@ -35,7 +35,15 @@ export interface SeriesQualityReport {
   duplicateTimestampCount: number;
   gapCount: number;
   sortedInput: boolean;
+  interpolatedCount: number;
+  interpolationMethod: InterpolationMethod;
 }
+
+export type InterpolationMethod = "none" | "linear" | "forward-fill" | "backward-fill";
+
+export type ForecastModel = "timegpt-1" | "timegpt-1-long-horizon";
+
+export type FinetuneLoss = "default" | "mae" | "mse" | "rmse" | "mape" | "smape";
 
 export interface ValidatedSeries {
   timeColumn: string;
@@ -52,6 +60,11 @@ export interface ForecastRequestInput {
   freq: string;
   horizon: number;
   levels: number[];
+  model: ForecastModel;
+  cleanExFirst: boolean;
+  finetuneSteps: number;
+  finetuneDepth: 1 | 2 | 3 | 4 | 5;
+  finetuneLoss: FinetuneLoss;
 }
 
 export interface TimeGptApiResponse {
@@ -60,6 +73,7 @@ export interface TimeGptApiResponse {
   finetune_tokens: number;
   mean: number[];
   intervals?: Record<string, number[]> | null;
+  feature_contributions?: number[][] | null;
 }
 
 export interface ForecastPoint {
@@ -74,10 +88,11 @@ export interface ForecastResult {
   inputTokens: number;
   outputTokens: number;
   finetuneTokens: number;
+  shapSummary: Array<{ feature: string; contribution: number }>;
   requestMeta: {
     horizon: number;
     freq: string;
-    model: "timegpt-1-long-horizon";
+    model: ForecastModel;
     baseUrl: string;
   };
 }

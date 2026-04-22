@@ -9,6 +9,7 @@ const Plot = dynamic(() => import("react-plotly.js"), { ssr: false });
 
 interface ForecastChartProps {
   result: ForecastResult | null;
+  comparisonResult?: ForecastResult | null;
 }
 
 function getIntervalPair(
@@ -37,7 +38,7 @@ function getIntervalPair(
   };
 }
 
-export default function ForecastChart({ result }: ForecastChartProps) {
+export default function ForecastChart({ result, comparisonResult = null }: ForecastChartProps) {
   if (!result) {
     return (
       <section className="flex min-h-[420px] items-center justify-center rounded-[32px] border border-slate-200 bg-white p-8 text-center shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
@@ -55,18 +56,24 @@ export default function ForecastChart({ result }: ForecastChartProps) {
     );
   }
 
+  const historyWindowSize = Math.min(
+    result.historical.length,
+    Math.max(result.requestMeta.horizon * 3, 40),
+  );
+  const historicalWindow = result.historical.slice(-historyWindowSize);
+
   const traces: Data[] = [
     {
       type: "scatter",
       mode: "lines",
-      name: "Historical",
-      x: result.historical.map((point) => point.timestamp),
-      y: result.historical.map((point) => point.value),
+      name: `Historical (last ${historyWindowSize})`,
+      x: historicalWindow.map((point) => point.timestamp),
+      y: historicalWindow.map((point) => point.value),
       line: { color: "#64748b", width: 2.4 },
     },
   ];
 
-  for (const level of [95, 80]) {
+  for (const level of [95]) {
     const pair = getIntervalPair(result.intervals, level);
     if (!pair.lower || !pair.upper) {
       continue;
@@ -91,13 +98,13 @@ export default function ForecastChart({ result }: ForecastChartProps) {
         y: pair.upper.map((point) => point.value),
         line: { color: "rgba(0,0,0,0)", width: 0 },
         fill: "tonexty",
-        fillcolor: level === 95 ? "rgba(148,163,184,0.16)" : "rgba(14,165,233,0.16)",
+        fillcolor: "rgba(14,165,233,0.15)",
         hovertemplate: `${level}% confidence interval<extra></extra>`,
       },
     );
   }
 
-  const lastHistoricalPoint = result.historical[result.historical.length - 1];
+  const lastHistoricalPoint = historicalWindow[historicalWindow.length - 1];
   const firstForecastPoint = result.forecast[0];
 
   if (lastHistoricalPoint && firstForecastPoint) {
@@ -123,6 +130,18 @@ export default function ForecastChart({ result }: ForecastChartProps) {
     marker: { color: "#0ea5e9", size: 6, line: { color: "#ffffff", width: 1.5 } },
     hovertemplate: "Forecast: %{y:.3f}<extra></extra>",
   });
+
+  if (comparisonResult) {
+    traces.push({
+      type: "scatter",
+      mode: "lines",
+      name: "Previous forecast",
+      x: comparisonResult.forecast.map((point) => point.timestamp),
+      y: comparisonResult.forecast.map((point) => point.value),
+      line: { color: "#f59e0b", width: 2.5, dash: "dash" },
+      hovertemplate: "Previous: %{y:.3f}<extra></extra>",
+    });
+  }
 
   const layout: Partial<Layout> = {
     paper_bgcolor: "rgba(0,0,0,0)",
@@ -168,7 +187,7 @@ export default function ForecastChart({ result }: ForecastChartProps) {
           <p className="text-[11px] font-medium tracking-[0.28em] text-slate-400 uppercase">
             Forecast chart
           </p>
-          <h3 className="mt-2 text-2xl font-semibold text-slate-900">Historical trend and forecast</h3>
+          <h3 className="mt-2 text-2xl font-semibold text-slate-900">Forecast-focused trend view</h3>
         </div>
         <div className="flex flex-wrap gap-3 text-xs text-slate-600">
           <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
@@ -179,9 +198,17 @@ export default function ForecastChart({ result }: ForecastChartProps) {
           </span>
           {Object.keys(result.intervals).length > 0 ? (
             <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1">
-              Confidence intervals enabled
+              95% confidence interval
             </span>
           ) : null}
+          {comparisonResult ? (
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1">
+              Overlay: previous vs current forecast
+            </span>
+          ) : null}
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+            Zoomed: last {historyWindowSize} history points
+          </span>
         </div>
       </div>
       <Plot
@@ -195,6 +222,45 @@ export default function ForecastChart({ result }: ForecastChartProps) {
         className="h-[460px] w-full"
         useResizeHandler
       />
+
+      <div className="mt-4 grid gap-4 border-t border-slate-100 px-4 pt-4 md:grid-cols-[1fr_320px]">
+        <div className="text-sm text-slate-500">
+          SHAP view summarizes feature contribution strength from the model response. Larger bars
+          indicate stronger average absolute contribution.
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-[11px] font-medium tracking-[0.22em] text-slate-400 uppercase">
+            SHAP contributions
+          </p>
+          {result.shapSummary.length === 0 ? (
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              No SHAP values returned for this request. This is expected when no exogenous features
+              are provided.
+            </p>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {result.shapSummary.map((item) => {
+                const max = result.shapSummary[0]?.contribution || 1;
+                const width = Math.max(8, (item.contribution / max) * 100);
+                return (
+                  <div key={item.feature}>
+                    <div className="mb-1 flex items-center justify-between text-xs text-slate-600">
+                      <span>{item.feature}</span>
+                      <span>{item.contribution.toFixed(4)}</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-white">
+                      <div
+                        className="h-2 rounded-full bg-sky-500"
+                        style={{ width: `${width}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
     </section>
   );
 }
